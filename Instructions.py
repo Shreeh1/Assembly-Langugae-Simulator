@@ -21,4 +21,4 @@ class Instructions(object):
         # possible hazards
         self.raw = self.war = self.waw = self.struct_haz = False
 
-        self.status = 0
+        self.status = 'IF'
