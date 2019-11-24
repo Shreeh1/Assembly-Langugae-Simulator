@@ -9,8 +9,14 @@ class Pipeline(object):
         parser_obj = Parse()
 
         # cycle count
-        self.cycle = 0
+        self.cycle = self.sub_cycle = 0
+        self.mem_cycle = int(parser_obj.conf[0]['Main memory'])
+        self.inst_cycle = int(parser_obj.conf[0]['FP adder'])
+        self.mul_cycle = int(parser_obj.conf[0]['FP Multiplier'])
+        self.div_cycle = int(parser_obj.conf[0]['FP divider'])
+        self.int_cycle = 2
 
+        self.cy_needed = 0
         # collecting the parsed data
         self.inst = parser_obj.inst
         self.config = parser_obj.conf
@@ -28,83 +34,58 @@ if __name__ == '__main__':
     for instruct in pipe_obj.inst[0]:
         list_of_inst_obj.append(Instructions(instruct))
 
-    while True:
+    i = 10
+    while i > 0:
+        i -= 1
         pipe_obj.cycle += 1
+        print("########################### cycle - " + str(pipe_obj.cycle))
         for instr in list_of_inst_obj:
-            print(instr.status)
-
-            if instr.status == 'IF' and not pipe_obj.decode_busy:
-                pipe_obj.write_back_busy = False
+            if instr.status == 'IF' and not pipe_obj.fetch_busy:
                 pipe_obj.fetch_busy = True
+                # print("cycle is", pipe_obj.cycle)
                 instr.fetch = pipe_obj.cycle
-                instr.status = 'ID'
+                if not pipe_obj.decode_busy:
+                    instr.status = 'ID'
+                print("inside IF")
 
-            if instr.status == 'ID' and not pipe_obj.execute_busy:
+            elif instr.status == 'ID' and not pipe_obj.decode_busy:
                 pipe_obj.fetch_busy = False
                 pipe_obj.decode_busy = True
                 instr.decode = pipe_obj.cycle
-                instr.status = 'EXE'
+                if not pipe_obj.execute_busy:
+                    instr.status = 'EXE'
+                print('Inside ID')
 
-            if instr.status == 'EXE' and not pipe_obj.write_back_busy:
+            elif instr.status == 'EXE' and not pipe_obj.write_back_busy:
                 pipe_obj.decode_busy = False
                 pipe_obj.execute_busy = True
-                cy_needed = 0
-                if instr.inst == ['ADD.D', 'SUB.D']:
-                    cy_needed = pipe_obj.config[0]['FP adder']
-                if instr.inst == 'MUL.D':
-                    cy_needed = pipe_obj.config[0]['FP Multiplier']
-                if instr.inst == 'DIV.D':
-                    cy_needed = pipe_obj.config[0]['FP divider']
-                if instr.inst == ['DADD', 'DADDI', 'DSUB', 'DSUBI', 'AND', 'ANDI', 'OR', 'ORI']:
-                    cy_needed = 2
-                if instr.inst == ['HLT', 'J', 'BEQ', 'BNE']:
-                    cy_needed = 0
-                cy_needed -= 1
+                print(instr.inst)
+                print(pipe_obj.cy_needed)
+                if instr.inst in ['LW', 'SW', 'L.D', 'S.D']:
+                    pipe_obj.mem_cycle -= 1
+                elif instr.inst in ['ADD.D', 'SUB.D']:
+                    pipe_obj.inst_cycle -= 1
+                elif instr.inst == 'MUL.D':
+                    pipe_obj.mul_cycle -= 1
+                elif instr.inst == 'DIV.D':
+                    pipe_obj.div_cycle -= 1
+                elif instr.inst in ['DADD', 'DADDI', 'DSUB', 'DSUBI', 'AND', 'ANDI', 'OR', 'ORI']:
+                    pipe_obj.int_cycle -= 1
+                elif instr.inst in ['HLT', 'J', 'BEQ', 'BNE']:
+                    pipe_obj.sub_cycle -= 1
                 instr.execute = pipe_obj.cycle
-                if cy_needed == 0:
+                if pipe_obj.mem_cycle == 0 or pipe_obj.inst_cycle == 0 or pipe_obj.mul_cycle == 0 or \
+                   pipe_obj.div_cycle == 0 or pipe_obj.int_cycle == 0:
                     instr.status = 'WB'
+                print('inside EXE')
 
-            if instr.status == 'WB' and not pipe_obj.fetch_busy:
+            elif instr.status == 'WB' and not pipe_obj.write_back_busy:
+                print('inside WB')
                 pipe_obj.write_back_busy = True
                 instr.write_back = pipe_obj.cycle
-                instr.status = 'IF'
-        # incrementing the cycle
 
+            print(instr.inst, instr.fetch, instr.decode, instr.execute, instr.write_back)
 
+            print('##' + instr.status)
 
-
-
-
-
-
-
-# def main():
-#
-#     par = Parse()
-#
-#     instructions = par.inst
-#     # print(instructions)
-#     for insrtuct in instructions[0]:
-#         # print(insrtuct)
-#         if insrtuct[0] == 'L.D':
-#             res = Pipeline(insrtuct)
-#             res.load()
-#             res.print()
-#         if insrtuct[0] == 'ADD.D' or insrtuct[0] == 'SUB.D':
-#             res = Pipeline(insrtuct)
-#             res.adder()
-#             res.print()
-#
-#         if insrtuct[0] == 'MUL.D':
-#             res = Pipeline(insrtuct)
-#             res.multiplier()
-#             res.print()
-#
-#
-# main()
-
-
-
-
-
-
+            continue

@@ -6,14 +6,15 @@ class Instructions(object):
         if len(arr) == 1:
             self.inst = arr[0]
 
-        if len(arr) == 2:
-            self.inst = arr[0]
-            self.reg1 = arr[1]
-
         if len(arr) == 3:
             self.inst = arr[0]
             self.reg1 = arr[1]
             self.reg2 = arr[2]
+        if len(arr) == 4:
+            self.inst = arr[0]
+            self.reg1 = arr[1]
+            self.reg2 = arr[2]
+            self.reg3 = arr[3]
 
         # cycle count for each stage
         self.fetch = self.decode = self.execute = self.write_back = 0
