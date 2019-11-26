@@ -10,7 +10,7 @@ class Pipeline(object):
 
         # cycle count
         self.cycle = self.sub_cycle = 0
-        self.mem_cycle = int(parser_obj.conf[0]['Main memory'])
+        self.mem_cycle = int(parser_obj.conf[0]['Main memory']) + 1
         self.inst_cycle = int(parser_obj.conf[0]['FP adder'])
         self.mul_cycle = int(parser_obj.conf[0]['FP Multiplier'])
         self.div_cycle = int(parser_obj.conf[0]['FP divider'])
@@ -42,25 +42,27 @@ if __name__ == '__main__':
         for instr in list_of_inst_obj:
             if instr.status == 'IF' and not pipe_obj.fetch_busy:
                 pipe_obj.fetch_busy = True
-                # print("cycle is", pipe_obj.cycle)
                 instr.fetch = pipe_obj.cycle
+                # print('in IF - ' + str(pipe_obj.decode_busy))
                 if not pipe_obj.decode_busy:
                     instr.status = 'ID'
-                print("inside IF")
+                # print(instr.status)
 
             elif instr.status == 'ID' and not pipe_obj.decode_busy:
+                # print('inside ID')
+                # print('in ID - ' + str(pipe_obj.decode_busy))
                 pipe_obj.fetch_busy = False
                 pipe_obj.decode_busy = True
                 instr.decode = pipe_obj.cycle
                 if not pipe_obj.execute_busy:
                     instr.status = 'EXE'
-                print('Inside ID')
+                    pipe_obj.decode_busy = False
+                print(instr.status)
 
+                # print('##Inside ID' + instr.status)
             elif instr.status == 'EXE' and not pipe_obj.write_back_busy:
                 pipe_obj.decode_busy = False
                 pipe_obj.execute_busy = True
-                print(instr.inst)
-                print(pipe_obj.cy_needed)
                 if instr.inst in ['LW', 'SW', 'L.D', 'S.D']:
                     pipe_obj.mem_cycle -= 1
                 elif instr.inst in ['ADD.D', 'SUB.D']:
@@ -77,15 +79,17 @@ if __name__ == '__main__':
                 if pipe_obj.mem_cycle == 0 or pipe_obj.inst_cycle == 0 or pipe_obj.mul_cycle == 0 or \
                    pipe_obj.div_cycle == 0 or pipe_obj.int_cycle == 0:
                     instr.status = 'WB'
-                print('inside EXE')
+                # print(instr.status)
+
+                # print('inside EXE')
 
             elif instr.status == 'WB' and not pipe_obj.write_back_busy:
-                print('inside WB')
+                # print('inside WB')
+                pipe_obj.execute_busy = False
                 pipe_obj.write_back_busy = True
                 instr.write_back = pipe_obj.cycle
-
+                pipe_obj.write_back_busy = False
+                instr.status = 'Done'
             print(instr.inst, instr.fetch, instr.decode, instr.execute, instr.write_back)
 
-            print('##' + instr.status)
-
-            continue
+            # print('##end' + instr.status)
