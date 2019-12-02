@@ -18,6 +18,9 @@ class Pipeline(object):
         self.registers = parser_obj.regs
         self.data = parser_obj.data
 
+        # register list
+        self.register_list = []
+
         # initialize instruction sets
         self.mem = ['LW', 'SW', 'L.D', 'S.D']
         self.add_sub = ['ADD.D', 'SUB.D']
@@ -26,7 +29,7 @@ class Pipeline(object):
 
         # tracking if busy or not
         self.fetch_busy = self.decode_busy = self.mem_busy = self.add_busy = self.mul_busy = self.div_busy = \
-            self.int_busy = self.write_back_busy = self.iu_busy = False
+            self.int_busy = self.write_back_busy = self.iu_busy = self.jump_busy = False
 
 
 if __name__ == '__main__':
@@ -36,7 +39,7 @@ if __name__ == '__main__':
     for instruct in pipe_obj.inst[0]:
         list_of_inst_obj.append(Instructions(instruct))
 
-    i = 10
+    i = 20
     while i > 0:
         i -= 1
         pipe_obj.cycle += 1
@@ -55,30 +58,56 @@ if __name__ == '__main__':
 
             elif instr.status == 'EXE':
                 pipe_obj.decode_busy = False
-                if instr.inst in pipe_obj.mem and not pipe_obj.mem_busy or instr.check:
-                    print(instr.check, j)
-                    # print(list_of_inst_obj.index(instr), j)
+                if instr.inst in pipe_obj.mem and not pipe_obj.iu_busy:
+                    pipe_obj.iu_busy = True
                     instr.check = True
+                    instr.mem_cycle -= 1
+
+                elif instr.inst in pipe_obj.mem and not pipe_obj.mem_busy or instr.check:
+                    pipe_obj.iu_busy = False
+                    # print(instr.check, j)
                     pipe_obj.mem_busy = True
                     instr.mem_cycle -= 1
                     if instr.mem_cycle == 0:
                         instr.execute = pipe_obj.cycle
                         instr.check = False
                         instr.status = 'WB'
-                    # print('is - ' + str(instr.mem_cycle))
-                print(instr.mem_cycle)
-                # elif instr.inst in pipe_obj.add_sub and not pipe_obj.add_busy or list_of_inst_obj.index(instr) == j:
-                #     instr.inst_cycle -= 1
-                # elif instr.inst == 'MUL.D' and not pipe_obj.mul_busy or list_of_inst_obj.index(instr) == j:
-                #     instr.mul_cycle -= 1
-                # elif instr.inst == 'DIV.D' and not pipe_obj.div_busy or list_of_inst_obj.index(instr) == j:
-                #     instr.div_cycle -= 1
-                # elif instr.inst in pipe_obj.int_inst and not pipe_obj.int_busy or list_of_inst_obj.index(instr) == j:
-                #     instr.int_cycle -= 1
-                # elif instr.inst in pipe_obj.jump:
-                #     instr.sub_cycle -= 1
-                # if instr.mem_cycle == 0 or instr.inst_cycle == 0 or instr.mul_cycle == 0 or \
-                #         instr.div_cycle == 0 or instr.int_cycle == 0:
+                elif instr.inst in pipe_obj.add_sub and not pipe_obj.add_busy or instr.check:
+                    pipe_obj.add_busy = True
+                    instr.check = True
+                    instr.add_sub_cycle -= 1
+                    if instr.int_cycle == 0:
+                        instr.execute = pipe_obj.cycle
+                        instr.check = False
+                        instr.status = 'WB'
+                elif instr.inst == 'MUL.D' and not pipe_obj.mul_busy or instr.check:
+                    pipe_obj.mul_busy = True
+                    instr.check = True
+                    instr.mul_cycle -= 1
+                    if instr.mul_cycle == 0:
+                        instr.execute = pipe_obj.cycle
+                        instr.check = False
+                        instr.status = 'WB'
+                elif instr.inst == 'DIV.D' and not pipe_obj.div_busy or instr.check:
+                    pipe_obj.div_busy = True
+                    instr.check = True
+                    instr.div_cycle -= 1
+                    if instr.div_cycle == 0:
+                        instr.execute = pipe_obj.cycle
+                        instr.check = False
+                        instr.status = 'WB'
+                elif instr.inst in pipe_obj.int_inst and not pipe_obj.int_busy or instr.check:
+                    pipe_obj.int_busy = True
+                    instr.check = True
+                    instr.int_cycle -= 1
+                    if instr.int_cycle == 0:
+                        instr.execute = pipe_obj.cycle
+                        instr.check = False
+                        instr.status = 'WB'
+                elif instr.inst in pipe_obj.jump and not pipe_obj.jump:
+                    instr.sub_cycle -= 1
+                    instr.status = 'WB'
+
 
                 # print('execute in EX - ' + str(pipe_obj.execute_busy), str(pipe_obj.cycle))
             elif instr.status == 'WB' and not pipe_obj.write_back_busy:
@@ -87,10 +116,21 @@ if __name__ == '__main__':
                 instr.write_back = pipe_obj.cycle
                 if instr.inst in pipe_obj.mem:
                     pipe_obj.mem_busy = False
+                elif instr.inst in pipe_obj.add_sub:
+                    pipe_obj.add_busy = False
+                elif instr.inst == 'MUL.D':
+                    pipe_obj.mul_busy = False
+                elif instr.inst == 'DIV.D':
+                    pipe_obj.div_busy = False
+                elif instr.inst in pipe_obj.int_inst:
+                    pipe_obj.int_busy = False
+                elif instr.inst in pipe_obj.jump:
+                    instr.status = 'Done'
                 instr.status = 'Done'
+
 
             elif instr.status == 'Done':
                 pipe_obj.write_back_busy = False
 
-            print(instr.inst, instr.fetch, instr.decode, instr.execute, instr.write_back, instr.status,
-                  pipe_obj.fetch_busy, pipe_obj.decode_busy, pipe_obj.mem_busy, pipe_obj.write_back_busy)
+            # print(instr.inst, instr.fetch, instr.decode, instr.execute, instr.write_back, instr.status,
+            #       pipe_obj.fetch_busy, pipe_obj.decode_busy, pipe_obj.mem_busy, pipe_obj.write_back_busy)

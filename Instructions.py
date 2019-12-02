@@ -17,11 +17,13 @@ class Instructions(object):
             self.reg2 = arr[2]
             self.reg3 = arr[3]
 
-        self.check = False
+        self.x = ''
+        self.mem_check = False
         self.sub_cycle = 0
         self.int_cycle = 2
-        self.mem_cycle = int(parser_obj.conf[0]['Main memory']) + 1
-        self.inst_cycle = int(parser_obj.conf[0]['FP adder'])
+        self.iu_cycle = 1
+        self.mem_cycle = int(parser_obj.conf[0]['Main memory'])
+        self.add_sub_cycle = int(parser_obj.conf[0]['FP adder'])
         self.mul_cycle = int(parser_obj.conf[0]['FP Multiplier'])
         self.div_cycle = int(parser_obj.conf[0]['FP divider'])
 
@@ -29,6 +31,7 @@ class Instructions(object):
         self.fetch = self.decode = self.execute = self.write_back = 0
 
         # possible hazards
-        self.raw = self.war = self.waw = self.struct_haz = False
+        self.raw = self.war = self.waw = self.struct_haz = 'N'
 
         self.status = 'IF'
+
