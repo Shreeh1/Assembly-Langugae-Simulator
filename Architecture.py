@@ -1,6 +1,6 @@
 from Parse import Parse
 from Instructions import Instructions
-
+import copy
 
 class Pipeline(object):
 
@@ -21,6 +21,7 @@ class Pipeline(object):
         self.registers = parser_obj.regs
         self.data = parser_obj.data
         self.calculated_reg = {}
+        print(self.registers)
 
         # register list
         self.register_set = {}
@@ -43,7 +44,7 @@ if __name__ == '__main__':
     for instruct in pipe_obj.inst[0]:
         list_of_inst_obj.append(Instructions(instruct))
     print(pipe_obj.inst)
-    i = 40
+    i = 60
     while i > 0:
         i -= 1
         pipe_obj.cycle += 1
@@ -84,10 +85,9 @@ if __name__ == '__main__':
                     if instr.inst == 'DSUB':
                         x = int(pipe_obj.registers[instr.reg3])
                         y = int(pipe_obj.registers[instr.reg2])
-                        pipe_obj.calculated_reg.update({instr.reg1: y-x})
-                        print('---------------------------------------------' + str(pipe_obj.calculated_reg))
+                        pipe_obj.registers.update({instr.reg1: y-x})
+                        print(str(pipe_obj.registers))
 
-                    print(pipe_obj.register_set)
                     if instr.reg3 in pipe_obj.register_set.keys() and j == pipe_obj.register_set[instr.reg3] or \
                             instr.reg2 in pipe_obj.register_set.keys() and j == pipe_obj.register_set[instr.reg2]:
                         pipe_obj.fetch_busy = [False, None]
@@ -111,15 +111,19 @@ if __name__ == '__main__':
                 elif instr.inst in pipe_obj.jump:
                     instr.decode = pipe_obj.cycle
                     if instr.inst == 'BNE':
-                        pipe_obj.calculated_reg.update({instr.reg2: pipe_obj.registers[instr.reg1]})
-                        regs = [reg for reg in pipe_obj.calculated_reg]
-                        if pipe_obj.calculated_reg[regs[0]] != pipe_obj.calculated_reg[regs[1]] and not pipe_obj.loop:
+                        print('----------------------0-0-0-00-0-00-0-0-0-0-0-0-0-0-0-0-0-----0-0-00-0-0-0-00---0-0--')
+                        if pipe_obj.registers[instr.reg1] != pipe_obj.registers[instr.reg2] and not pipe_obj.loop:
+                            # test 1
+                            # print('------not equal------')
                             pipe_obj.loop = True
                             cont_inst = pipe_obj.inst[0][pipe_obj.inst[1]['GG']:]
                             del list_of_inst_obj[-1]
                             for instrs in cont_inst:
                                 list_of_inst_obj.append(Instructions(instrs))
                             instr.status = 'Done'
+                            pipe_obj.loop = False
+                            pipe_obj.fetch_busy = [False, None]
+
                     elif instr.inst == 'BEQ':
                         pipe_obj.calculated_reg.update({instr.reg2: pipe_obj.registers[instr.reg1]})
                         regs = [reg for reg in pipe_obj.calculated_reg]
@@ -132,8 +136,10 @@ if __name__ == '__main__':
                         cont_inst = pipe_obj.inst[0][pipe_obj.inst[1]['GG']:]
 
                     elif instr.inst == 'HLT':
+                        print('----------------------0-0-0-00-0-00-0-0-0-0-0-0-0-0-0-0-0-----0-0-00-0-0-0-00---0-0--00-0')
                         instr.decode = pipe_obj.cycle
                         instr.status = 'Done'
+                        pipe_obj.fetch_busy = [False, None]
 
             elif instr.status == 'EXE':
                 pipe_obj.decode_busy = [False, None]
@@ -147,7 +153,6 @@ if __name__ == '__main__':
                         pipe_obj.iu_busy = [False, None]
                         pipe_obj.mem_busy = [True, j]
                         instr.mem_cycle -= 1
-                        print(instr.mem_cycle)
                         if instr.mem_cycle == 0:
                             instr.execute = pipe_obj.cycle
                             instr.status = 'WB'
@@ -211,7 +216,6 @@ if __name__ == '__main__':
                         instr.struct_haz = 'Y'
 
             elif instr.status == 'WB' and not pipe_obj.write_back_busy[0]:
-                print(instr.inst + 'inside wb', instr.reg1)
                 pipe_obj.write_back_busy = [True, j]
                 if instr.inst in pipe_obj.mem:
                     pipe_obj.mem_busy = [False, None]
