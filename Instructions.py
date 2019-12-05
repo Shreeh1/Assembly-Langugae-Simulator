@@ -20,7 +20,7 @@ class Instructions(object):
         self.x = ''
         self.mem_check = False
         self.sub_cycle = 0
-        self.int_cycle = 2
+        self.int_cycle = 1
         self.iu_cycle = 1
         self.mem_cycle = int(parser_obj.conf[0]['Main memory'])
         self.add_sub_cycle = int(parser_obj.conf[0]['FP adder'])

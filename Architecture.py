@@ -1,6 +1,7 @@
 from Parse import Parse
 from Instructions import Instructions
-import copy
+from tabulate import tabulate
+
 
 class Pipeline(object):
 
@@ -14,16 +15,15 @@ class Pipeline(object):
 
         # loop case check
         self.loop = False
+        self.loop_count = 0
 
         # collecting the parsed data
         self.inst = parser_obj.inst
         self.config = parser_obj.conf
         self.registers = parser_obj.regs
         self.data = parser_obj.data
-        self.calculated_reg = {}
-        print(self.registers)
 
-        # register list
+        # register set
         self.register_set = {}
 
         # initialize instruction sets
@@ -39,31 +39,43 @@ class Pipeline(object):
 
 if __name__ == '__main__':
 
+    tab = []
     pipe_obj = Pipeline()
     list_of_inst_obj = []
     for instruct in pipe_obj.inst[0]:
         list_of_inst_obj.append(Instructions(instruct))
-    print(pipe_obj.inst)
-    i = 60
+    i = 100
+
+    # blocks = [[], [], [], []]
+    # for i, inst in enumerate(list_of_inst_obj):
+
+
     while i > 0:
         i -= 1
         pipe_obj.cycle += 1
-        print("########################### cycle - " + str(pipe_obj.cycle))
+        print("############################################# cycle - " + str(pipe_obj.cycle))
 
         for j, instr in enumerate(list_of_inst_obj):
-
             if instr.status == 'IF' and not pipe_obj.fetch_busy[0]:
+
+                # check icache
+
+
                 pipe_obj.fetch_busy = [True, j]
                 instr.fetch = pipe_obj.cycle
                 instr.status = 'ID'
 
+
+
+
+
             elif instr.status == 'ID' and not pipe_obj.decode_busy[0]:
                 # keeping the list of registers that are in use
-                try:
+                if instr.inst in ['HLT', 'J', 'BNE']:
+                    pass
+                else:
                     if instr.reg1 not in pipe_obj.register_set.keys():
                         pipe_obj.register_set.update({instr.reg1: j})
-                except:
-                    pass
 
                 # checking for RAW
                 if instr.inst in pipe_obj.add_sub or instr.inst == 'MUL.D' or instr.inst == 'DIV.D':
@@ -82,25 +94,14 @@ if __name__ == '__main__':
                         instr.status = 'EXE'
 
                 elif instr.inst in pipe_obj.int_inst:
-                    if instr.inst == 'DSUB':
-                        x = int(pipe_obj.registers[instr.reg3])
-                        y = int(pipe_obj.registers[instr.reg2])
-                        pipe_obj.registers.update({instr.reg1: y-x})
-                        print(str(pipe_obj.registers))
-
                     if instr.reg3 in pipe_obj.register_set.keys() and j == pipe_obj.register_set[instr.reg3] or \
                             instr.reg2 in pipe_obj.register_set.keys() and j == pipe_obj.register_set[instr.reg2]:
                         pipe_obj.fetch_busy = [False, None]
                         pipe_obj.decode_busy = [True, j]
                         instr.decode = pipe_obj.cycle
                         instr.status = 'EXE'
-                    elif instr.reg3 in pipe_obj.register_set.keys() or instr.reg2 in pipe_obj.register_set.keys():
-                        instr.raw = 'Y'
                     else:
-                        pipe_obj.fetch_busy = [False, None]
-                        pipe_obj.decode_busy = [True, j]
-                        instr.decode = pipe_obj.cycle
-                        instr.status = 'EXE'
+                        instr.raw = 'Y'
 
                 elif instr.inst in pipe_obj.mem:
                     pipe_obj.fetch_busy = [False, None]
@@ -109,12 +110,28 @@ if __name__ == '__main__':
                     instr.status = 'EXE'
 
                 elif instr.inst in pipe_obj.jump:
-                    instr.decode = pipe_obj.cycle
                     if instr.inst == 'BNE':
-                        print('----------------------0-0-0-00-0-00-0-0-0-0-0-0-0-0-0-0-0-----0-0-00-0-0-0-00---0-0--')
-                        if pipe_obj.registers[instr.reg1] != pipe_obj.registers[instr.reg2] and not pipe_obj.loop:
-                            # test 1
-                            # print('------not equal------')
+                        if instr.reg2 not in pipe_obj.register_set.keys() and instr.reg1 not in pipe_obj.register_set.keys():
+                            pipe_obj.fetch_busy = [False, None]
+                            if instr.decode == 0:
+                                instr.decode = pipe_obj.cycle
+
+                            if pipe_obj.registers[instr.reg1] != pipe_obj.registers[instr.reg2] and not pipe_obj.loop:
+                                print('hello world')
+                                pipe_obj.loop = True
+                                cont_inst = pipe_obj.inst[0][pipe_obj.inst[1]['GG']:]
+                                del list_of_inst_obj[-1]
+                                for instrs in cont_inst:
+                                    list_of_inst_obj.append(Instructions(instrs))
+                                instr.status = 'Done'
+                                pipe_obj.loop = False
+                                pipe_obj.fetch_busy = [False, None]
+                        else:
+                            instr.raw = 'Y'
+
+                    elif instr.inst == 'BEQ':
+                        if pipe_obj.registers[instr.reg1] == pipe_obj.registers[instr.reg2] and not pipe_obj.loop:
+                            pipe_obj.loop_count += 1
                             pipe_obj.loop = True
                             cont_inst = pipe_obj.inst[0][pipe_obj.inst[1]['GG']:]
                             del list_of_inst_obj[-1]
@@ -124,26 +141,24 @@ if __name__ == '__main__':
                             pipe_obj.loop = False
                             pipe_obj.fetch_busy = [False, None]
 
-                    elif instr.inst == 'BEQ':
-                        pipe_obj.calculated_reg.update({instr.reg2: pipe_obj.registers[instr.reg1]})
-                        regs = [reg for reg in pipe_obj.calculated_reg]
-                        if pipe_obj.calculated_reg[regs[0]] == pipe_obj.calculated_reg[regs[1]] and not pipe_obj.loop:
-                            pipe_obj.loop = True
-                            cont_inst = pipe_obj.inst[0][pipe_obj.inst[1]['GG']:]
-                            del list_of_inst_obj[-1]
-                            instr.status = 'Done'
                     elif instr.inst == 'J':
                         cont_inst = pipe_obj.inst[0][pipe_obj.inst[1]['GG']:]
+                        del list_of_inst_obj[-1]
+                        for instrs in cont_inst:
+                            list_of_inst_obj.append(Instructions(instrs))
+                        instr.status = 'Done'
+                        pipe_obj.fetch_busy = [False, None]
 
                     elif instr.inst == 'HLT':
-                        print('----------------------0-0-0-00-0-00-0-0-0-0-0-0-0-0-0-0-0-----0-0-00-0-0-0-00---0-0--00-0')
-                        instr.decode = pipe_obj.cycle
+                        if list_of_inst_obj[j - 1].inst == 'HLT':
+                            list_of_inst_obj[j - 1].decode = list_of_inst_obj[j].fetch
                         instr.status = 'Done'
                         pipe_obj.fetch_busy = [False, None]
 
             elif instr.status == 'EXE':
                 pipe_obj.decode_busy = [False, None]
-                if instr.inst in pipe_obj.mem and not pipe_obj.iu_busy[0] and not instr.mem_check:
+                if (instr.inst in pipe_obj.mem or instr.inst in pipe_obj.int_inst) and not pipe_obj.iu_busy[
+                    0] and not instr.mem_check:
                     pipe_obj.iu_busy = [True, j]
                     instr.mem_check = True
                     instr.iu_cycle -= 1
@@ -206,40 +221,83 @@ if __name__ == '__main__':
                                 instr.status = 'WB'
 
                 elif instr.inst in pipe_obj.int_inst:
-                    if not pipe_obj.int_busy[0] or pipe_obj.int_busy[1] == j:
-                        pipe_obj.int_busy = [True, j]
+                    if pipe_obj.mem_busy[1] == j or not pipe_obj.mem_busy[0]:
+                        pipe_obj.iu_busy = [False, None]
+                        pipe_obj.mem_busy = [True, j]
                         instr.int_cycle -= 1
                         if instr.int_cycle == 0:
                             instr.execute = pipe_obj.cycle
                             instr.status = 'WB'
                     else:
-                        instr.struct_haz = 'Y'
+                        print('mem busy true', pipe_obj.mem_busy, pipe_obj.cycle)
+                        instr.struct_haz = 'M'
 
-            elif instr.status == 'WB' and not pipe_obj.write_back_busy[0]:
-                pipe_obj.write_back_busy = [True, j]
-                if instr.inst in pipe_obj.mem:
-                    pipe_obj.mem_busy = [False, None]
-                elif instr.inst in pipe_obj.add_sub:
-                    pipe_obj.add_busy = [False, None]
-                elif instr.inst == 'MUL.D':
-                    pipe_obj.mul_busy = [False, None]
-                elif instr.inst == 'DIV.D':
-                    pipe_obj.div_busy = [False, None]
-                elif instr.inst in pipe_obj.int_inst:
-                    pipe_obj.int_busy = [False, None]
-                elif instr.inst in pipe_obj.jump:
+            elif instr.status == 'WB':
+                print(pipe_obj.write_back_busy)
+                if not pipe_obj.write_back_busy[0]:
+                    if instr.inst == 'DSUB':
+                        x = int(pipe_obj.registers[instr.reg3])
+                        y = int(pipe_obj.registers[instr.reg2])
+                        pipe_obj.registers.update({instr.reg1: y - x})
+                        print(instr.reg1, pipe_obj.registers[instr.reg1], 'hello hello')
+
+                    elif instr.inst == 'DADDI':
+                        x = int(instr.reg3)
+                        y = int(pipe_obj.registers[instr.reg2])
+                        pipe_obj.registers.update({instr.reg1: y + x})
+
+                    pipe_obj.write_back_busy = [True, pipe_obj.cycle]
+                    if instr.inst in pipe_obj.mem:
+                        pipe_obj.mem_busy = [False, None]
+                    elif instr.inst in pipe_obj.add_sub:
+                        pipe_obj.add_busy = [False, None]
+                    elif instr.inst == 'MUL.D':
+                        pipe_obj.mul_busy = [False, None]
+                    elif instr.inst == 'DIV.D':
+                        pipe_obj.div_busy = [False, None]
+                    elif instr.inst in pipe_obj.int_inst:
+                        pipe_obj.mem_busy = [False, None]
+                    elif instr.inst in pipe_obj.jump:
+                        instr.status = 'Done'
+                    instr.write_back = pipe_obj.cycle
                     instr.status = 'Done'
-
-                instr.write_back = pipe_obj.cycle
-                instr.status = 'Done'
-                try:
                     del pipe_obj.register_set[instr.reg1]
-                except:
-                    pass
+
+                else:
+                    if pipe_obj.cycle == pipe_obj.write_back_busy[1]:
+                        instr.struct_haz = 'Y'
+                        if instr.inst in pipe_obj.mem + pipe_obj.int_inst:
+                            instr.execute = pipe_obj.cycle
+                        elif pipe_obj.cycle > pipe_obj.write_back_busy[1]:
+                            instr.write_back = pipe_obj.cycle
+                            if instr.inst in ['ADD.D', 'SUB.D']:
+                                pipe_obj.add_busy = [False, None]
+                                del pipe_obj.register_set[instr.reg1]
+                            elif instr.inst == 'MUL.D':
+                                pipe_obj.mul_busy = [False, None]
+                                del pipe_obj.register_set[instr.reg1]
+                            elif instr.inst == 'DIV.D':
+                                pipe_obj.div_busy = [False, None]
+                                del pipe_obj.register_set[instr.reg1]
+                            elif instr.inst in pipe_obj.mem + pipe_obj.int_inst:
+                                pipe_obj.mem_busy = [False, None]
+                                del pipe_obj.register_set[instr.reg1]
+                            pipe_obj.write_back_busy = [True, pipe_obj.cycle]
+                            instr.status = 'Done'
 
             elif instr.status == 'Done':
-                pipe_obj.write_back_busy[0] = False
-            # print(pipe_obj.register_set)
+                temp = 0 if pipe_obj.write_back_busy[1] is None else pipe_obj.write_back_busy[1]
+                if pipe_obj.cycle > temp:
+                    pipe_obj.write_back_busy = [False, None]
+
             print(instr.inst, instr.fetch, instr.decode, instr.execute, instr.write_back, instr.status,
                   pipe_obj.fetch_busy, pipe_obj.decode_busy, pipe_obj.mem_busy, pipe_obj.write_back_busy, instr.raw,
                   instr.waw, instr.war, instr.struct_haz)
+            tab.append([instr.inst, instr.fetch, instr.decode, instr.execute, instr.write_back, instr.status,
+                  pipe_obj.fetch_busy, pipe_obj.decode_busy, pipe_obj.mem_busy, pipe_obj.write_back_busy, instr.raw,
+                  instr.waw, instr.war, instr.struct_haz])
+
+    def get_table():
+        print(pipe_obj.loop_count)
+        print(tabulate(tab[-25:]))
+    get_table()
