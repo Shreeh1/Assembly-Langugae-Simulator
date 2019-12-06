@@ -12,7 +12,7 @@ class Parse:
 
     def __init__(self):
 
-        self.conf = parse_config()
-        self.inst = parse_inst()
-        self.regs = assign_reg()
-        self.data = access_add()
+        self.conf = parse_config('config.txt')
+        self.inst = parse_inst('inst.txt')
+        self.regs = assign_reg('reg.txt')
+        self.data = access_add('data.txt')

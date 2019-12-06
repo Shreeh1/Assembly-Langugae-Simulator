@@ -5,10 +5,10 @@ The return type is a dictionary {}
 """
 
 
-def access_add():
+def access_add(data_file):
 
     # open data file and read the data
-    re = open('data.txt', 'r')
+    re = open(data_file, 'r')
     lines = re.readlines()
 
     # list of values found in the text file

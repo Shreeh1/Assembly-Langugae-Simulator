@@ -5,10 +5,10 @@ The return type is a dictionary {}
 """
 
 
-def assign_reg():
+def assign_reg(reg_file):
 
     # opening the text file
-    re = open('reg.txt', 'r')
+    re = open(reg_file, 'r')
 
     # reading the contents
     bin = re.readlines()

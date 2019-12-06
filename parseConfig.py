@@ -6,10 +6,10 @@ The return type is a tuple of dictionaries. ({}, {})
 """
 
 
-def parse_config():
+def parse_config(config_file):
 
     # opening the config text file
-    config = open('config.txt', 'r')
+    config = open(config_file, 'r')
 
     # reading the configurations
     content = config.readlines()
@@ -30,7 +30,7 @@ def parse_config():
 
         if configurations.index(conf) in [0, 1, 2]:
             x = conf.split(':')
-            y = x[-1].lstrip().split(',')
-            pipeline.update({x[0]: y[-1]})
+            y = x[-1].lstrip().rstrip().split(',')
+            pipeline.update({x[0]: y[-1].strip()})
 
     return cycle, pipeline

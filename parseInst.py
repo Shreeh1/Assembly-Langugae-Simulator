@@ -7,10 +7,10 @@ The return value is a tuple of, ([[]], {})
 """
 
 
-def parse_inst():
+def parse_inst(inst_file):
 
     # open the text file
-    inst = open('inst.txt', 'r')
+    inst = open(inst_file, 'r')
 
     # list of instructions
     content = inst.readlines()

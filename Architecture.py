@@ -1,7 +1,7 @@
 from Parse import Parse
 from Instructions import Instructions
 from tabulate import tabulate
-
+import copy
 
 class Pipeline(object):
 
@@ -15,13 +15,20 @@ class Pipeline(object):
 
         # loop case check
         self.loop = False
-        self.loop_count = 0
+
+        # flag for i-cache
+        self.spec_i_flag = False
 
         # collecting the parsed data
         self.inst = parser_obj.inst
         self.config = parser_obj.conf
         self.registers = parser_obj.regs
         self.data = parser_obj.data
+
+        # hit count
+        self.hit_count = 0
+
+        self.stall = 0
 
         # register set
         self.register_set = {}
@@ -33,8 +40,8 @@ class Pipeline(object):
         self.jump = ['HLT', 'J', 'BEQ', 'BNE']
 
         # tracking if busy or not
-        self.fetch_busy = self.decode_busy = self.mem_busy = self.add_busy = self.mul_busy = self.div_busy = \
-            self.int_busy = self.write_back_busy = self.iu_busy = self.jump_busy = [False, None]
+        self.fetch_busy = self.decode_busy = self.mem_busy = self.add_busy = self.mul_busy = self.div_busy \
+            = self.write_back_busy = self.iu_busy = self.jump_busy = [False, None]
 
 
 if __name__ == '__main__':
@@ -42,32 +49,57 @@ if __name__ == '__main__':
     tab = []
     pipe_obj = Pipeline()
     list_of_inst_obj = []
+
+    # creating the instruction objects
     for instruct in pipe_obj.inst[0]:
         list_of_inst_obj.append(Instructions(instruct))
+
+    # assigning the address for each of the instructions
+    for i in range(len(list_of_inst_obj)):
+        list_of_inst_obj[i].address = i
+
+    # creating a deepcopy of the instructions
+    instr_copy = copy.deepcopy(list_of_inst_obj)
+
+    len_of_org_list = len(list_of_inst_obj)
+
+    # creating the blocks for i-cache
+    blocks = [[], [], [], []]
     i = 100
-
-    # blocks = [[], [], [], []]
-    # for i, inst in enumerate(list_of_inst_obj):
-
-
     while i > 0:
         i -= 1
         pipe_obj.cycle += 1
         print("############################################# cycle - " + str(pipe_obj.cycle))
 
         for j, instr in enumerate(list_of_inst_obj):
-            if instr.status == 'IF' and not pipe_obj.fetch_busy[0]:
+            if instr.status == 'IF':
+                if not pipe_obj.fetch_busy[0] or instr.i_flag[0]:
 
-                # check icache
+                    # check i-cache
+                    block_number = int(instr.address/4) % 4
 
+                    if not pipe_obj.spec_i_flag:
+                        if instr.address in blocks[block_number]:
+                            pipe_obj.hit_count += 1
+                        else:
+                            blocks[block_number] = [i for i in range(instr.address, instr.address+4)]
+                            instr.cache_miss_flag = True
 
-                pipe_obj.fetch_busy = [True, j]
-                instr.fetch = pipe_obj.cycle
-                instr.status = 'ID'
+                        if instr.cache_miss_flag:
+                            pipe_obj.stall = 2 * (int(pipe_obj.config[0]['I-Cache']) + int(pipe_obj.config[0]['Main memory']))
+                            pipe_obj.spec_i_flag = True
 
+                        else:
+                            pipe_obj.stall = int(pipe_obj.config[0]['I-Cache'])
+                            pipe_obj.spec_i_flag = True
 
-
-
+                    instr.i_flag = [True, j]
+                    pipe_obj.stall -= 1
+                    pipe_obj.fetch_busy = [True, j]
+                    if pipe_obj.stall == 0:
+                        pipe_obj.spec_i_flag = False
+                        instr.status = 'ID'
+                        instr.fetch = pipe_obj.cycle
 
             elif instr.status == 'ID' and not pipe_obj.decode_busy[0]:
                 # keeping the list of registers that are in use
@@ -117,12 +149,9 @@ if __name__ == '__main__':
                                 instr.decode = pipe_obj.cycle
 
                             if pipe_obj.registers[instr.reg1] != pipe_obj.registers[instr.reg2] and not pipe_obj.loop:
-                                print('hello world')
                                 pipe_obj.loop = True
-                                cont_inst = pipe_obj.inst[0][pipe_obj.inst[1]['GG']:]
                                 del list_of_inst_obj[-1]
-                                for instrs in cont_inst:
-                                    list_of_inst_obj.append(Instructions(instrs))
+                                list_of_inst_obj.extend(instr_copy[pipe_obj.inst[1]['GG']:])
                                 instr.status = 'Done'
                                 pipe_obj.loop = False
                                 pipe_obj.fetch_busy = [False, None]
@@ -131,7 +160,6 @@ if __name__ == '__main__':
 
                     elif instr.inst == 'BEQ':
                         if pipe_obj.registers[instr.reg1] == pipe_obj.registers[instr.reg2] and not pipe_obj.loop:
-                            pipe_obj.loop_count += 1
                             pipe_obj.loop = True
                             cont_inst = pipe_obj.inst[0][pipe_obj.inst[1]['GG']:]
                             del list_of_inst_obj[-1]
@@ -142,7 +170,7 @@ if __name__ == '__main__':
                             pipe_obj.fetch_busy = [False, None]
 
                     elif instr.inst == 'J':
-                        cont_inst = pipe_obj.inst[0][pipe_obj.inst[1]['GG']:]
+                        cont_inst = instr_copy[pipe_obj.inst[1]['GG']:]
                         del list_of_inst_obj[-1]
                         for instrs in cont_inst:
                             list_of_inst_obj.append(Instructions(instrs))
@@ -175,7 +203,7 @@ if __name__ == '__main__':
                         instr.struct_haz = 'Y'
 
                 elif instr.inst in pipe_obj.add_sub:
-                    if pipe_obj.config[1]['FP adder'] == ' yes':
+                    if pipe_obj.config[1]['FP adder'] == 'yes':
                         instr.add_sub_cycle -= 1
                         if instr.add_sub_cycle == 0:
                             instr.execute = pipe_obj.cycle
@@ -191,7 +219,7 @@ if __name__ == '__main__':
                             pass
 
                 elif instr.inst == 'MUL.D':
-                    if pipe_obj.config[1]['FP Multiplier'] == ' yes':
+                    if pipe_obj.config[1]['FP Multiplier'] == 'yes':
                         instr.mul_cycle -= 1
                         if instr.mul_cycle == 0:
                             instr.execute = pipe_obj.cycle
@@ -207,7 +235,7 @@ if __name__ == '__main__':
                             pass
 
                 elif instr.inst == 'DIV.D':
-                    if pipe_obj.config[1]['FP divider'] == ' yes':
+                    if pipe_obj.config[1]['FP divider'] == 'yes':
                         instr.div_cycle -= 1
                         if instr.div_cycle == 0:
                             instr.execute = pipe_obj.cycle
@@ -233,13 +261,11 @@ if __name__ == '__main__':
                         instr.struct_haz = 'M'
 
             elif instr.status == 'WB':
-                print(pipe_obj.write_back_busy)
                 if not pipe_obj.write_back_busy[0]:
                     if instr.inst == 'DSUB':
                         x = int(pipe_obj.registers[instr.reg3])
                         y = int(pipe_obj.registers[instr.reg2])
                         pipe_obj.registers.update({instr.reg1: y - x})
-                        print(instr.reg1, pipe_obj.registers[instr.reg1], 'hello hello')
 
                     elif instr.inst == 'DADDI':
                         x = int(instr.reg3)
@@ -261,7 +287,8 @@ if __name__ == '__main__':
                         instr.status = 'Done'
                     instr.write_back = pipe_obj.cycle
                     instr.status = 'Done'
-                    del pipe_obj.register_set[instr.reg1]
+                    if instr.reg1 in pipe_obj.register_set:
+                        del pipe_obj.register_set[instr.reg1]
 
                 else:
                     if pipe_obj.cycle == pipe_obj.write_back_busy[1]:
@@ -297,7 +324,3 @@ if __name__ == '__main__':
                   pipe_obj.fetch_busy, pipe_obj.decode_busy, pipe_obj.mem_busy, pipe_obj.write_back_busy, instr.raw,
                   instr.waw, instr.war, instr.struct_haz])
 
-    def get_table():
-        print(pipe_obj.loop_count)
-        print(tabulate(tab[-25:]))
-    get_table()

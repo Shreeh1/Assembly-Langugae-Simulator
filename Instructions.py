@@ -17,6 +17,7 @@ class Instructions(object):
             self.reg2 = arr[2]
             self.reg3 = arr[3]
 
+        self.address = 0
         self.x = ''
         self.mem_check = False
         self.sub_cycle = 0
@@ -34,4 +35,11 @@ class Instructions(object):
         self.raw = self.war = self.waw = self.struct_haz = 'N'
 
         self.status = 'IF'
+
+        # instruction cache flag
+        self.i_flag = [False, 0]
+        self.cache_miss_flag = False
+
+        self.d_flag = False
+
 
