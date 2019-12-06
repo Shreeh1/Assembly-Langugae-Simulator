@@ -27,9 +27,11 @@ class Pipeline(object):
         self.data = parser_obj.data
 
         # hit count
-        self.hit_count = 0
-        self.access_count = 0
+        self.i_hit_count = 0
+        self.i_access_count = 0
         self.d_miss = 0
+        self.d_hit_count = 0
+        self.d_access_count = 0
 
         self.stall = 0
 
@@ -73,14 +75,14 @@ class Pipeline(object):
                     if mem_add in self.d_block_0[ff]:
                         next = 1
                         v = ff
-                        self.hit_count += 1
-                        self.access_count += 1
+                        self.d_hit_count += 1
+                        self.d_access_count += 1
                         self.least_recently_used = int(not (v))
                 if next == 1:
                     return self.config[0]['D-Cache']
                 if next == 0:
                     self.d_miss += 1
-                    self.access_count += 1
+                    self.d_access_count += 1
                     block_start_number = int(mem_add / 16) * 16
                     self.d_block_0.update({self.least_recently_used: [k for k in range(block_start_number,
                                                                                        block_start_number + 16,
@@ -99,14 +101,14 @@ class Pipeline(object):
                     if mem_add in self.d_block_1[ff]:
                         next = 1
                         v = ff
-                        self.hit_count += 1
-                        self.access_count += 1
+                        self.d_hit_count += 1
+                        self.d_access_count += 1
                         self.least_recently_used2 = int(not (v))
                 if next == 1:
                     return self.config[0]['D-Cache']
                 if next == 0:
                     self.d_miss += 1
-                    self.access_count += 1
+                    self.d_access_count += 1
                     block_start_number = int(instr.dest_data / 16) * 16
                     self.d_block_1.update({self.least_recently_used: [k for k in range(block_start_number,
                                                                                        block_start_number + 16,
@@ -138,15 +140,15 @@ class Pipeline(object):
                         if item in self.d_block_0[ff]:
                             next = 1
                             v = ff
-                            self.hit_count += 1
-                            self.access_count += 1
+                            self.d_hit_count += 1
+                            self.d_access_count += 1
                             self.least_recently_used = int(not (v))
                     if next == 1:
                         exe_cycles += int(self.config[0]['D-Cache']) - 1
 
                     if next == 0:
                         self.d_miss += 1
-                        self.access_count += 1
+                        self.d_access_count += 1
                         block_start_number = int(mem_add / 16) * 16
                         self.d_block_0.update({self.least_recently_used: [k for k in range(block_start_number,
                                                                                            block_start_number + 16,
@@ -164,14 +166,14 @@ class Pipeline(object):
                         if item in self.d_block_1[ff]:
                             next = 1
                             v = ff
-                            self.hit_count += 1
-                            self.access_count += 1
+                            self.d_hit_count += 1
+                            self.d_access_count += 1
                             self.least_recently_used2 = int(not (v))
                     if next == 1:
                         return self.config[0]['D-Cache']
                     if next == 0:
                         self.d_miss += 1
-                        self.access_count += 1
+                        self.d_access_count += 1
                         block_start_number = int(mem_add / 16) * 16
                         self.d_block_1.update({self.least_recently_used: [k for k in range(block_start_number,
                                                                                            block_start_number + 16,
@@ -187,6 +189,9 @@ class Pipeline(object):
                                           int(self.config[0]['D-Cache']) - 1
 
             return exe_cycles
+        
+    # def tab(self, li):
+        
 
 
 if __name__ == '__main__':
@@ -225,10 +230,12 @@ if __name__ == '__main__':
 
                     if not pipe_obj.spec_i_flag:
                         if instr.address in blocks[block_number]:
-                            pipe_obj.hit_count += 1
+                            pipe_obj.i_hit_count += 1
+                            pipe_obj.i_access_count += 1
                         else:
                             blocks[block_number] = [i for i in range(instr.address, instr.address + 4)]
                             instr.cache_miss_flag = True
+                            pipe_obj.i_access_count += 1
 
                         if instr.cache_miss_flag:
                             pipe_obj.stall = 2 * (
@@ -324,8 +331,9 @@ if __name__ == '__main__':
                         pipe_obj.fetch_busy = [False, None]
 
                     elif instr.inst == 'HLT':
+                        print('decode busy', pipe_obj.decode_busy)
                         if list_of_inst_obj[j - 1].inst == 'HLT':
-                            list_of_inst_obj[j - 1].decode = list_of_inst_obj[j].fetch
+                            list_of_inst_obj[j - 1].decode = list_of_inst_obj[j-1].fetch + 1
                         instr.status = 'Done'
                         pipe_obj.fetch_busy = [False, None]
 
@@ -471,8 +479,12 @@ if __name__ == '__main__':
 
             print(instr.inst, instr.fetch, instr.decode, instr.execute, instr.write_back, instr.status,
                   pipe_obj.fetch_busy, pipe_obj.decode_busy, pipe_obj.mem_busy, pipe_obj.write_back_busy, instr.raw,
-                  instr.waw, instr.war, instr.struct_haz)
+                  instr.waw, instr.war, instr.struct_haz, pipe_obj.i_hit_count, pipe_obj.i_access_count,
+                  pipe_obj.d_hit_count, pipe_obj.d_access_count, len(list_of_inst_obj))
+            
+            
             tab.append([instr.inst, instr.fetch, instr.decode, instr.execute, instr.write_back, instr.status,
                         pipe_obj.fetch_busy, pipe_obj.decode_busy, pipe_obj.mem_busy, pipe_obj.write_back_busy,
                         instr.raw,
                         instr.waw, instr.war, instr.struct_haz])
+

@@ -3,6 +3,7 @@ from Instructions import Instructions
 from tabulate import tabulate
 import copy
 
+
 class Pipeline(object):
 
     def __init__(self):
@@ -26,12 +27,27 @@ class Pipeline(object):
         self.data = parser_obj.data
 
         # hit count
-        self.hit_count = 0
+        self.i_hit_count = 0
+        self.i_access_count = 0
+        self.d_miss = 0
+        self.d_hit_count = 0
+        self.d_access_count = 0
 
         self.stall = 0
 
+        self.fflag = False
+        self.next = 0
+        self.v = 0
+
         # register set
         self.register_set = {}
+
+        # d-cache
+        self.d_block_0 = {d_value_0: [] for d_value_0 in range(2)}
+        self.d_block_1 = {d_value_1: [] for d_value_1 in range(2)}
+
+        self.least_recently_used = 0
+        self.least_recently_used2 = 0
 
         # initialize instruction sets
         self.mem = ['LW', 'SW', 'L.D', 'S.D']
@@ -42,6 +58,138 @@ class Pipeline(object):
         # tracking if busy or not
         self.fetch_busy = self.decode_busy = self.mem_busy = self.add_busy = self.mul_busy = self.div_busy \
             = self.write_back_busy = self.iu_busy = self.jump_busy = [False, None]
+
+    def data_cache(self, instr):
+
+        global next
+        global v
+        if instr.inst in ["LW", "SW"]:
+
+            # determining which set to put it in
+            reg_num = instr.reg2.strip(')').split('(')
+            mem_add = int(self.registers[reg_num[-1]]) + int(reg_num[0])
+            set_number = int(mem_add / 16) % 2
+
+            if set_number == 0:
+                for ff in range(len(self.d_block_0)):
+                    if mem_add in self.d_block_0[ff]:
+                        next = 1
+                        v = ff
+                        self.d_hit_count += 1
+                        self.d_access_count += 1
+                        self.least_recently_used = int(not (v))
+                if next == 1:
+                    return self.config[0]['D-Cache']
+                if next == 0:
+                    self.d_miss += 1
+                    self.d_access_count += 1
+                    block_start_number = int(mem_add / 16) * 16
+                    self.d_block_0.update({self.least_recently_used: [k for k in range(block_start_number,
+                                                                                       block_start_number + 16,
+                                                                                       4)]})
+                    self.least_recently_used = int(not (self.least_recently_used))
+                    print('d_block0', self.d_block_0)
+
+                    if instr.name == "L.W":
+                        return 2 * (self.config[0]['Main memory'] + self.config[0]['D-Cache'])
+
+                    else:
+                        return 2 * (self.config[0]['Main memory'] + self.config[0]['D-Cache']) + self.config[0][
+                            'D-Cache']
+
+            if set_number == 1:
+                for ff in range(len(self.d_block_1)):
+                    if mem_add in self.d_block_1[ff]:
+                        next = 1
+                        v = ff
+                        self.d_hit_count += 1
+                        self.d_access_count += 1
+                        self.least_recently_used2 = int(not (v))
+                if next == 1:
+                    return self.config[0]['D-Cache']
+                if next == 0:
+                    self.d_miss += 1
+                    self.d_access_count += 1
+                    block_start_number = int(instr.dest_data / 16) * 16
+                    self.d_block_1.update({self.least_recently_used: [k for k in range(block_start_number,
+                                                                                       block_start_number + 16,
+                                                                                       4)]})
+                    self.least_recently_used2 = int(not (self.least_recently_used))
+                    print('d_block1', self.d_block_1)
+
+                    if instr.name == "L.W":
+                        return 2 * (self.config[0]['Main memory'] + self.config[0]['D-Cache'])
+
+                    else:
+                        return 2 * (self.config[0]['Main memory'] + self.config[0]['D-Cache']) + self.config[0][
+                            'D-Cache']
+
+        if instr.inst in ["L.D", "S.D"]:
+            double_list = []
+            exe_cycles = 0
+            reg_num = instr.reg2.strip(')').split('(')
+            mem_add = int(self.registers[reg_num[-1]]) + int(reg_num[0])
+
+            double_list.append(mem_add)
+            double_list.append(mem_add + 4)
+            for item in double_list:
+                next = 0
+                set_number = int(item / 16) % 2
+
+                if set_number == 0:
+                    for ff in range(len(self.d_block_0)):
+                        if item in self.d_block_0[ff]:
+                            next = 1
+                            v = ff
+                            self.d_hit_count += 1
+                            self.d_access_count += 1
+                            self.least_recently_used = int(not (v))
+                    if next == 1:
+                        exe_cycles += int(self.config[0]['D-Cache']) - 1
+
+                    if next == 0:
+                        self.d_miss += 1
+                        self.d_access_count += 1
+                        block_start_number = int(mem_add / 16) * 16
+                        self.d_block_0.update({self.least_recently_used: [k for k in range(block_start_number,
+                                                                                           block_start_number + 16,
+                                                                                           4)]})
+                        self.least_recently_used = int(not (self.least_recently_used))
+                        if instr.inst == "L.D":
+                            exe_cycles += 2 * (int(self.config[0]['Main memory']) + int(self.config[0]['D-Cache'])) - 1
+
+                        else:
+                            exe_cycles += 2 * (int(self.config[0]['Main memory']) + int(self.config[0]['D-Cache'])) + \
+                                          int(self.config[0]['D-Cache']) - 1
+
+                if set_number == 1:
+                    for ff in range(len(self.d_block_1)):
+                        if item in self.d_block_1[ff]:
+                            next = 1
+                            v = ff
+                            self.d_hit_count += 1
+                            self.d_access_count += 1
+                            self.least_recently_used2 = int(not (v))
+                    if next == 1:
+                        return self.config[0]['D-Cache']
+                    if next == 0:
+                        self.d_miss += 1
+                        self.d_access_count += 1
+                        block_start_number = int(mem_add / 16) * 16
+                        self.d_block_1.update({self.least_recently_used: [k for k in range(block_start_number,
+                                                                                           block_start_number + 16,
+                                                                                           4)]})
+
+                        self.least_recently_used2 = int(not (self.least_recently_used))
+                        print('d_block1', self.d_block_1)
+
+                        if instr.inst == 'L.D':
+                            exe_cycles += 2 * (int(self.config[0]['Main memory']) + int(self.config[0]['D-Cache'])) - 1
+                        else:
+                            exe_cycles += 2 * (int(self.config[0]['Main memory']) + int(self.config[0]['D-Cache'])) + \
+                                          int(self.config[0]['D-Cache']) - 1
+
+            return exe_cycles
 
 
 if __name__ == '__main__':
@@ -76,17 +224,20 @@ if __name__ == '__main__':
                 if not pipe_obj.fetch_busy[0] or instr.i_flag[0]:
 
                     # check i-cache
-                    block_number = int(instr.address/4) % 4
+                    block_number = int(instr.address / 4) % 4
 
                     if not pipe_obj.spec_i_flag:
                         if instr.address in blocks[block_number]:
-                            pipe_obj.hit_count += 1
+                            pipe_obj.i_hit_count += 1
+                            pipe_obj.i_access_count += 1
                         else:
-                            blocks[block_number] = [i for i in range(instr.address, instr.address+4)]
+                            blocks[block_number] = [i for i in range(instr.address, instr.address + 4)]
                             instr.cache_miss_flag = True
+                            pipe_obj.i_access_count += 1
 
                         if instr.cache_miss_flag:
-                            pipe_obj.stall = 2 * (int(pipe_obj.config[0]['I-Cache']) + int(pipe_obj.config[0]['Main memory']))
+                            pipe_obj.stall = 2 * (
+                                    int(pipe_obj.config[0]['I-Cache']) + int(pipe_obj.config[0]['Main memory']))
                             pipe_obj.spec_i_flag = True
 
                         else:
@@ -178,8 +329,9 @@ if __name__ == '__main__':
                         pipe_obj.fetch_busy = [False, None]
 
                     elif instr.inst == 'HLT':
+                        print('decode busy', pipe_obj.decode_busy)
                         if list_of_inst_obj[j - 1].inst == 'HLT':
-                            list_of_inst_obj[j - 1].decode = list_of_inst_obj[j].fetch
+                            list_of_inst_obj[j - 1].decode = list_of_inst_obj[j - 1].fetch + 1
                         instr.status = 'Done'
                         pipe_obj.fetch_busy = [False, None]
 
@@ -190,8 +342,13 @@ if __name__ == '__main__':
                     pipe_obj.iu_busy = [True, j]
                     instr.mem_check = True
                     instr.iu_cycle -= 1
+                    print('in-- iu', j)
 
                 elif instr.inst in pipe_obj.mem:
+                    if not instr.d_flag:
+                        instr.mem_cycle += pipe_obj.data_cache(instr)
+                        instr.d_flag = True
+                    print(instr.mem_cycle, j)
                     if pipe_obj.mem_busy[1] == j or not pipe_obj.mem_busy[0]:
                         pipe_obj.iu_busy = [False, None]
                         pipe_obj.mem_busy = [True, j]
@@ -199,6 +356,7 @@ if __name__ == '__main__':
                         if instr.mem_cycle == 0:
                             instr.execute = pipe_obj.cycle
                             instr.status = 'WB'
+
                     else:
                         instr.struct_haz = 'Y'
 
@@ -319,8 +477,11 @@ if __name__ == '__main__':
 
             print(instr.inst, instr.fetch, instr.decode, instr.execute, instr.write_back, instr.status,
                   pipe_obj.fetch_busy, pipe_obj.decode_busy, pipe_obj.mem_busy, pipe_obj.write_back_busy, instr.raw,
-                  instr.waw, instr.war, instr.struct_haz)
+                  instr.waw, instr.war, instr.struct_haz, pipe_obj.i_hit_count, pipe_obj.i_access_count,
+                  pipe_obj.d_hit_count, pipe_obj.d_access_count, len(list_of_inst_obj))
+
             tab.append([instr.inst, instr.fetch, instr.decode, instr.execute, instr.write_back, instr.status,
-                  pipe_obj.fetch_busy, pipe_obj.decode_busy, pipe_obj.mem_busy, pipe_obj.write_back_busy, instr.raw,
-                  instr.waw, instr.war, instr.struct_haz])
+                        pipe_obj.fetch_busy, pipe_obj.decode_busy, pipe_obj.mem_busy, pipe_obj.write_back_busy,
+                        instr.raw,
+                        instr.waw, instr.war, instr.struct_haz])
 
