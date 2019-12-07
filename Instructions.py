@@ -6,11 +6,15 @@ class Instructions(object):
         # depending on the number of registers
         if len(arr) == 1:
             self.inst = arr[0]
+            self.reg1 = ''
+            self.reg2 = ''
+            self.reg3 = ''
 
         if len(arr) == 3:
             self.inst = arr[0]
             self.reg1 = arr[1]
             self.reg2 = arr[2]
+            self.reg3 = ''
         if len(arr) == 4:
             self.inst = arr[0]
             self.reg1 = arr[1]

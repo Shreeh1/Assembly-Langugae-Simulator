@@ -2,6 +2,7 @@ from Parse import Parse
 from Instructions import Instructions
 from tabulate import tabulate
 import copy
+import sys
 
 
 class Pipeline(object):
@@ -88,7 +89,6 @@ class Pipeline(object):
                                                                                        block_start_number + 16,
                                                                                        4)]})
                     self.least_recently_used = int(not (self.least_recently_used))
-                    print('d_block0', self.d_block_0)
 
                     if instr.name == "L.W":
                         return 2 * (self.config[0]['Main memory'] + self.config[0]['D-Cache'])
@@ -115,7 +115,6 @@ class Pipeline(object):
                                                                                        block_start_number + 16,
                                                                                        4)]})
                     self.least_recently_used2 = int(not (self.least_recently_used))
-                    print('d_block1', self.d_block_1)
 
                     if instr.name == "L.W":
                         return 2 * (self.config[0]['Main memory'] + self.config[0]['D-Cache'])
@@ -181,7 +180,6 @@ class Pipeline(object):
                                                                                            4)]})
 
                         self.least_recently_used2 = int(not (self.least_recently_used))
-                        print('d_block1', self.d_block_1)
 
                         if instr.inst == 'L.D':
                             exe_cycles += 2 * (int(self.config[0]['Main memory']) + int(self.config[0]['D-Cache'])) - 1
@@ -194,7 +192,7 @@ class Pipeline(object):
 
 if __name__ == '__main__':
 
-    tab = []
+    tabu = []
     pipe_obj = Pipeline()
     list_of_inst_obj = []
 
@@ -217,7 +215,6 @@ if __name__ == '__main__':
     while i > 0:
         i -= 1
         pipe_obj.cycle += 1
-        print("############################################# cycle - " + str(pipe_obj.cycle))
 
         for j, instr in enumerate(list_of_inst_obj):
             if instr.status == 'IF':
@@ -266,6 +263,8 @@ if __name__ == '__main__':
                         instr.raw = 'Y'
                     elif instr.reg3 in pipe_obj.register_set.keys() and j == pipe_obj.register_set[instr.reg3] or \
                             instr.reg2 in pipe_obj.register_set.keys() and j == pipe_obj.register_set[instr.reg2]:
+                        pipe_obj.register_set.update({instr.reg1})
+
                         pipe_obj.fetch_busy = [False, None]
                         pipe_obj.decode_busy = [True, j]
                         instr.decode = pipe_obj.cycle
@@ -279,6 +278,7 @@ if __name__ == '__main__':
                 elif instr.inst in pipe_obj.int_inst:
                     if instr.reg3 in pipe_obj.register_set.keys() and j == pipe_obj.register_set[instr.reg3] or \
                             instr.reg2 in pipe_obj.register_set.keys() and j == pipe_obj.register_set[instr.reg2]:
+
                         pipe_obj.fetch_busy = [False, None]
                         pipe_obj.decode_busy = [True, j]
                         instr.decode = pipe_obj.cycle
@@ -329,7 +329,6 @@ if __name__ == '__main__':
                         pipe_obj.fetch_busy = [False, None]
 
                     elif instr.inst == 'HLT':
-                        print('decode busy', pipe_obj.decode_busy)
                         if list_of_inst_obj[j - 1].inst == 'HLT':
                             list_of_inst_obj[j - 1].decode = list_of_inst_obj[j - 1].fetch + 1
                         instr.status = 'Done'
@@ -342,13 +341,11 @@ if __name__ == '__main__':
                     pipe_obj.iu_busy = [True, j]
                     instr.mem_check = True
                     instr.iu_cycle -= 1
-                    print('in-- iu', j)
 
                 elif instr.inst in pipe_obj.mem:
                     if not instr.d_flag:
-                        instr.mem_cycle += pipe_obj.data_cache(instr)
+                        instr.mem_cycle += int(pipe_obj.data_cache(instr))
                         instr.d_flag = True
-                    print(instr.mem_cycle, j)
                     if pipe_obj.mem_busy[1] == j or not pipe_obj.mem_busy[0]:
                         pipe_obj.iu_busy = [False, None]
                         pipe_obj.mem_busy = [True, j]
@@ -415,8 +412,7 @@ if __name__ == '__main__':
                             instr.execute = pipe_obj.cycle
                             instr.status = 'WB'
                     else:
-                        print('mem busy true', pipe_obj.mem_busy, pipe_obj.cycle)
-                        instr.struct_haz = 'M'
+                        instr.struct_haz = 'Y'
 
             elif instr.status == 'WB':
                 if not pipe_obj.write_back_busy[0]:
@@ -475,13 +471,17 @@ if __name__ == '__main__':
                 if pipe_obj.cycle > temp:
                     pipe_obj.write_back_busy = [False, None]
 
-            print(instr.inst, instr.fetch, instr.decode, instr.execute, instr.write_back, instr.status,
-                  pipe_obj.fetch_busy, pipe_obj.decode_busy, pipe_obj.mem_busy, pipe_obj.write_back_busy, instr.raw,
-                  instr.waw, instr.war, instr.struct_haz, pipe_obj.i_hit_count, pipe_obj.i_access_count,
-                  pipe_obj.d_hit_count, pipe_obj.d_access_count, len(list_of_inst_obj))
+            tabu.append([instr.inst, instr.reg1, instr.reg2, instr.reg3, instr.fetch, instr.decode, instr.execute,
+                         instr.write_back, instr.raw, instr.waw, instr.war, instr.struct_haz])
 
-            tab.append([instr.inst, instr.fetch, instr.decode, instr.execute, instr.write_back, instr.status,
-                        pipe_obj.fetch_busy, pipe_obj.decode_busy, pipe_obj.mem_busy, pipe_obj.write_back_busy,
-                        instr.raw,
-                        instr.waw, instr.war, instr.struct_haz])
-
+    with open(sys.argv[5], 'w') as f:
+        f.write(tabulate(tabu[-len(list_of_inst_obj):],
+                         headers=['Instructions', 'FT', 'ID', 'EX', 'WB', 'RAW', 'WAR', 'WAW', 'Struct']) + '\n\n\n'
+            'Total number of access requests for instruction cache:' + str(
+            pipe_obj.i_access_count) + '\n\n'
+             'Number of instruction cache hits:' + str(pipe_obj.i_hit_count) + '\n\n'
+            'Total number of access requests for data cache:' + str(
+            pipe_obj.d_access_count) + '\n\n'
+            'Number of data cache hits:' + str(pipe_obj.d_hit_count)
+                )
+    # print(tabulate(tabu[-len(list_of_inst_obj):]))

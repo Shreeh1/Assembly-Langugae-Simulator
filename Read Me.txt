@@ -1,0 +1,37 @@
+########################## FILES IN ZIP ###########################
+The submission includes,
+1. assignReg.py
+2. Instructions.py
+3. parseInst.py
+4. parseConfig.py
+5. checkData.py
+6. Parse.py
+
+
+########################## Programming Language	######################
+
+Python3
+
+Note: The system would require python3
+
+
+######################### Packages needed ###########################
+Packages to Install,
+1. Tabulate
+Note: you can Pip install tabulate in the same folder or global pip install
+
+######################### Procedure to run ##########################
+
+Step1: Unzip the zip file
+Step2: Open the terminal in the folder path
+Step3: Run the make file
+	$ make run
+
+Note: Please install the dependencies if there are any in the system.
+
+######################### Comments ##################################
+
+I have included the test case 1 text files(referring the slide for results).
+To run on the other test cases please replace the respective text files accordingly. 
+
+
